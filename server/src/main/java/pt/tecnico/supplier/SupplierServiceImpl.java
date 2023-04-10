@@ -18,6 +18,8 @@ import static javax.xml.bind.DatatypeConverter.printHexBinary;
 import java.security.MessageDigest;
 import java.io.InputStream;
 import com.google.protobuf.ByteString;
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
 
 public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
 
@@ -81,52 +83,64 @@ public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
 		byte[] requestBinary = request.toByteArray();
 		debug(String.format("%d bytes%n", requestBinary.length));
 
-		// build response
-		SignedResponse.Builder responseBuilder = SignedResponse.newBuilder();
-		Signature.Builder signatureBuilder = Signature.newBuilder();
-		signatureBuilder.setSignerId("Supplier1");
-		byte[] responseBytes = response.toByteArray();
-		signatureBuilder.setValue("Supplier1");
+		try {
+			// build response
+			SignedResponse.Builder responseBuilder = SignedResponse.newBuilder();
+			ProductsResponse.Builder productsResponseBuilder = responseBuilder.getResponseBuilder();
+			productsResponseBuilder.setSupplierIdentifier(supplier.getId());
+			for (String pid : supplier.getProductsIDs()) {
+				pt.tecnico.supplier.domain.Product p = supplier.getProduct(pid);
+				Product product = buildProductFromProduct(p);
+				productsResponseBuilder.addProduct(product);
+			}
 
-		responseBuilder.getResponseBuilder().setSupplierIdentifier(supplier.getId());
-		for (String pid : supplier.getProductsIDs()) {
-			pt.tecnico.supplier.domain.Product p = supplier.getProduct(pid);
-			Product product = buildProductFromProduct(p);
-			responseBuilder.getResponseBuilder().addProduct(product);
+			// get a message digest object using the specified algorithm
+			MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+
+
+			// generate a random IV
+			byte[] iv = new byte[16];
+
+			// calculate the digest and print it out
+			byte[] responseBytes = productsResponseBuilder.build().toByteArray();
+			messageDigest.update(responseBytes);
+			byte[] digest = messageDigest.digest();
+			System.out.println("Digest:");
+			System.out.println(printHexBinary(digest));
+
+			// get an AES cipher object
+			Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+
+			IvParameterSpec ips = new IvParameterSpec(iv);
+			// encrypt the plain text using the key
+			cipher.init(Cipher.ENCRYPT_MODE, readKey("secret.key"), ips);
+			byte[] cipherDigest = cipher.doFinal(digest);
+
+			// build signature
+			Signature.Builder signatureBuilder = Signature.newBuilder();
+			signatureBuilder.setSignerId("Supplier1");
+			ByteString byteString = ByteString.copyFrom(cipherDigest);
+			signatureBuilder.setValue(byteString);
+			responseBuilder.setSignature(signatureBuilder.build());
+
+			// build response
+			SignedResponse response = responseBuilder.build();
+
+			debug("Response to send:");
+			debug(response.toString());
+			debug("in binary hexadecimals:");
+			byte[] responseBinary = response.toByteArray();
+			debug(printHexBinary(responseBinary));
+			debug(String.format("%d bytes%n", responseBinary.length));
+
+			// send single response back
+			responseObserver.onNext(response);
+			// complete call
+			responseObserver.onCompleted();
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
-		responseBuilder.setSignature(signatureBuilder.build());
-		SignedResponse response = responseBuilder.build();
 
-		// get a message digest object using the specified algorithm
-		MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
-
-		// calculate the digest and print it out
-		byte[] responseBytes = response.toByteArray();
-		messageDigest.update(rresponseBytes);
-		byte[] digest = messageDigest.digest();
-		System.out.println("Digest:");
-		System.out.println(printHexBinary(digest));
-
-		// get an AES cipher object
-		Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-
-		IvParameterSpec ips = new IvParameterSpec(iv);
-		// encrypt the plain text using the key
-		cipher.init(Cipher.ENCRYPT_MODE, readKey("secret.key"), ips);
-		byte[] cipherDigest = cipher.doFinal(digest);
-
-		return cipherDigest;
-
-		debug("Response to send:");
-		debug(response.toString());
-		debug("in binary hexadecimals:");
-		byte[] responseBinary = response.toByteArray();
-		debug(printHexBinary(responseBinary));
-		debug(String.format("%d bytes%n", responseBinary.length));
-
-		// send single response back
-		responseObserver.onNext(response);
-		// complete call
-		responseObserver.onCompleted();
+		
 	}
 }

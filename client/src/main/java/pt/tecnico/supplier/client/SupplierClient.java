@@ -5,13 +5,10 @@ import static javax.xml.bind.DatatypeConverter.printHexBinary;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import pt.tecnico.supplier.grpc.ProductsRequest;
-import pt.tecnico.supplier.grpc.ProductsResponse;
 import pt.tecnico.supplier.grpc.SupplierGrpc;
 import javax.crypto.spec.SecretKeySpec;
-import static javax.xml.bind.DatatypeConverter.printHexBinary;
 import java.io.InputStream;
 import pt.tecnico.supplier.grpc.SignedResponse;
-import pt.tecnico.supplier.grpc.Signature;
 
 public class SupplierClient {
 
