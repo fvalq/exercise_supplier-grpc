@@ -15,7 +15,9 @@ import pt.tecnico.supplier.grpc.SignedResponse;
 import pt.tecnico.supplier.grpc.Signature;	
 import javax.crypto.spec.SecretKeySpec;
 import static javax.xml.bind.DatatypeConverter.printHexBinary;
+import java.security.MessageDigest;
 import java.io.InputStream;
+import com.google.protobuf.ByteString;
 
 public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
 
@@ -83,7 +85,8 @@ public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
 		SignedResponse.Builder responseBuilder = SignedResponse.newBuilder();
 		Signature.Builder signatureBuilder = Signature.newBuilder();
 		signatureBuilder.setSignerId("Supplier1");
-		signatureBuilder.setValue(readKey("secret.key"));
+		byte[] responseBytes = response.toByteArray();
+		signatureBuilder.setValue("Supplier1");
 
 		responseBuilder.getResponseBuilder().setSupplierIdentifier(supplier.getId());
 		for (String pid : supplier.getProductsIDs()) {
@@ -93,6 +96,26 @@ public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
 		}
 		responseBuilder.setSignature(signatureBuilder.build());
 		SignedResponse response = responseBuilder.build();
+
+		// get a message digest object using the specified algorithm
+		MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+
+		// calculate the digest and print it out
+		byte[] responseBytes = response.toByteArray();
+		messageDigest.update(rresponseBytes);
+		byte[] digest = messageDigest.digest();
+		System.out.println("Digest:");
+		System.out.println(printHexBinary(digest));
+
+		// get an AES cipher object
+		Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+
+		IvParameterSpec ips = new IvParameterSpec(iv);
+		// encrypt the plain text using the key
+		cipher.init(Cipher.ENCRYPT_MODE, readKey("secret.key"), ips);
+		byte[] cipherDigest = cipher.doFinal(digest);
+
+		return cipherDigest;
 
 		debug("Response to send:");
 		debug(response.toString());
@@ -106,5 +129,4 @@ public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
 		// complete call
 		responseObserver.onCompleted();
 	}
-
 }
