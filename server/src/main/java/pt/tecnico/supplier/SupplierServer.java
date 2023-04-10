@@ -3,6 +3,9 @@ package pt.tecnico.supplier;
 import io.grpc.BindableService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import javax.crypto.spec.SecretKeySpec;
+import static javax.xml.bind.DatatypeConverter.printHexBinary;
+import java.io.InputStream;
 
 public class SupplierServer {
 

@@ -9,9 +9,30 @@ import pt.tecnico.supplier.domain.Supplier;
 import pt.tecnico.supplier.grpc.Product;
 import pt.tecnico.supplier.grpc.ProductsRequest;
 import pt.tecnico.supplier.grpc.ProductsResponse;
+import pt.tecnico.supplier.grpc.SignedResponse;
 import pt.tecnico.supplier.grpc.SupplierGrpc;
+import pt.tecnico.supplier.grpc.SignedResponse;
+import pt.tecnico.supplier.grpc.Signature;	
+import javax.crypto.spec.SecretKeySpec;
+import static javax.xml.bind.DatatypeConverter.printHexBinary;
+import java.io.InputStream;
 
 public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
+
+	public static SecretKeySpec readKey(String resourcePathName) throws Exception {
+		System.out.println("Reading key from resource " + resourcePathName + " ...");
+		
+		InputStream fis = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourcePathName);
+		byte[] encoded = new byte[fis.available()];
+		fis.read(encoded);
+		fis.close();
+		
+		System.out.println("Key:");
+		System.out.println(printHexBinary(encoded));
+		SecretKeySpec keySpec = new SecretKeySpec(encoded, "AES");
+
+		return keySpec;
+	}
 
 	/**
 	 * Set flag to true to print debug messages. The flag can be set using the
@@ -49,7 +70,7 @@ public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
 	}
 
 	@Override
-	public void listProducts(ProductsRequest request, StreamObserver<ProductsResponse> responseObserver) {
+	public void listProducts(ProductsRequest request, StreamObserver<SignedResponse> responseObserver) {
 		debug("listProducts called");
 
 		debug("Received request:");
@@ -59,14 +80,19 @@ public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
 		debug(String.format("%d bytes%n", requestBinary.length));
 
 		// build response
-		ProductsResponse.Builder responseBuilder = ProductsResponse.newBuilder();
-		responseBuilder.setSupplierIdentifier(supplier.getId());
+		SignedResponse.Builder responseBuilder = SignedResponse.newBuilder();
+		Signature.Builder signatureBuilder = Signature.newBuilder();
+		signatureBuilder.setSignerId("Supplier1");
+		signatureBuilder.setValue(readKey("secret.key"));
+
+		responseBuilder.getResponseBuilder().setSupplierIdentifier(supplier.getId());
 		for (String pid : supplier.getProductsIDs()) {
 			pt.tecnico.supplier.domain.Product p = supplier.getProduct(pid);
 			Product product = buildProductFromProduct(p);
-			responseBuilder.addProduct(product);
+			responseBuilder.getResponseBuilder().addProduct(product);
 		}
-		ProductsResponse response = responseBuilder.build();
+		responseBuilder.setSignature(signatureBuilder.build());
+		SignedResponse response = responseBuilder.build();
 
 		debug("Response to send:");
 		debug(response.toString());

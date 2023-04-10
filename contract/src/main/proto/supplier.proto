@@ -27,6 +27,16 @@ message ProductsResponse {
   repeated Product product = 2;
 }
 
+message Signature {
+  string signerId = 1;
+  bytes value = 2;
+}
+
+message SignedResponse {
+  ProductsResponse response = 1;
+  Signature signature = 2;
+}
+
 service Supplier {
-  rpc listProducts(ProductsRequest) returns (ProductsResponse);
+  rpc listProducts(ProductsRequest) returns (SignedResponse);
 }
