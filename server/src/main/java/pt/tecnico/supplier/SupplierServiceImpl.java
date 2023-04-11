@@ -15,27 +15,50 @@ import pt.tecnico.supplier.grpc.SignedResponse;
 import pt.tecnico.supplier.grpc.Signature;	
 import javax.crypto.spec.SecretKeySpec;
 import static javax.xml.bind.DatatypeConverter.printHexBinary;
+
+import java.security.KeyFactory;
 import java.security.MessageDigest;
+import java.security.PrivateKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import com.google.protobuf.ByteString;
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 
 public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
-
-	public static SecretKeySpec readKey(String resourcePathName) throws Exception {
-		System.out.println("Reading key from resource " + resourcePathName + " ...");
+	// // public static SecretKeySpec readKey(String resourcePathName) throws Exception {
+	// // 	System.out.println("Reading key from resource " + resourcePathName + " ...");
 		
-		InputStream fis = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourcePathName);
-		byte[] encoded = new byte[fis.available()];
-		fis.read(encoded);
+	// // 	InputStream fis = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourcePathName);
+	// // 	byte[] encoded = new byte[fis.available()];
+	// // 	fis.read(encoded);
+	// // 	fis.close();
+		
+	// // 	System.out.println("Key:");
+	// // 	System.out.println(printHexBinary(encoded));
+	// // 	SecretKeySpec keySpec = new SecretKeySpec(encoded, "AES");
+
+	// // 	return keySpec;
+	// // }
+	private static byte[] readFile(String path) throws FileNotFoundException, IOException {
+		InputStream fis = Thread.currentThread().getContextClassLoader().getResourceAsStream(path);
+		byte[] content = new byte[fis.available()];
+		fis.read(content);
 		fis.close();
-		
-		System.out.println("Key:");
-		System.out.println(printHexBinary(encoded));
-		SecretKeySpec keySpec = new SecretKeySpec(encoded, "AES");
+		return content;
+	}
 
-		return keySpec;
+	public static PrivateKey readKey(String resourcePathName) throws Exception {
+		System.out.println("Reading private key from file " + resourcePathName + " ...");
+		byte[] privEncoded = readFile(resourcePathName);
+
+		PKCS8EncodedKeySpec privSpec = new PKCS8EncodedKeySpec(privEncoded);
+		KeyFactory keyFacPriv = KeyFactory.getInstance("RSA");
+		PrivateKey priv = keyFacPriv.generatePrivate(privSpec);
+		return priv;
 	}
 
 	/**
@@ -97,9 +120,6 @@ public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
 			// get a message digest object using the specified algorithm
 			MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
 
-			// generate a random IV
-			byte[] iv = new byte[16];
-
 			// calculate the digest and print it out
 			byte[] responseBytes = productsResponseBuilder.build().toByteArray();
 			messageDigest.update(responseBytes);
@@ -108,11 +128,10 @@ public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
 			System.out.println(printHexBinary(digest));
 
 			// get an AES cipher object
-			Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+			Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
 
-			IvParameterSpec ips = new IvParameterSpec(iv);
 			// encrypt the plain text using the key
-			cipher.init(Cipher.ENCRYPT_MODE, readKey("secret.key"), ips);
+			cipher.init(Cipher.ENCRYPT_MODE, readKey("priv.key"));
 			byte[] cipherDigest = cipher.doFinal(digest);
 
 			// build signature
@@ -125,7 +144,7 @@ public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
 			// remove this line to send the response with the original products
 			// // ProductsResponse.Builder modifiedProducts = responseBuilder.getResponseBuilder();
 			// // modifiedProducts.setSupplierIdentifier("modifiedID");
-			
+
 			// build response
 			SignedResponse response = responseBuilder.build();
 
