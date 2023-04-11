@@ -97,7 +97,6 @@ public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
 			// get a message digest object using the specified algorithm
 			MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
 
-
 			// generate a random IV
 			byte[] iv = new byte[16];
 
@@ -123,6 +122,10 @@ public class SupplierServiceImpl extends SupplierGrpc.SupplierImplBase {
 			signatureBuilder.setValue(byteString);
 			responseBuilder.setSignature(signatureBuilder.build());
 
+			// remove this line to send the response with the original products
+			// // ProductsResponse.Builder modifiedProducts = responseBuilder.getResponseBuilder();
+			// // modifiedProducts.setSupplierIdentifier("modifiedID");
+			
 			// build response
 			SignedResponse response = responseBuilder.build();
 

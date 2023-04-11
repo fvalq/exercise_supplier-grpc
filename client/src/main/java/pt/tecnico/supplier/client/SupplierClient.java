@@ -9,6 +9,10 @@ import pt.tecnico.supplier.grpc.SupplierGrpc;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.InputStream;
 import pt.tecnico.supplier.grpc.SignedResponse;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.Cipher;
+import java.security.MessageDigest;
+import java.util.Arrays;
 
 public class SupplierClient {
 
@@ -77,6 +81,33 @@ public class SupplierClient {
 		// Make the call using the stub.
 		System.out.println("Remote call...");
 		SignedResponse response = stub.listProducts(request);
+		
+		// generate a random IV
+		byte[] iv = new byte[16];
+
+		// get an AES cipher object
+		Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+
+		IvParameterSpec ips = new IvParameterSpec(iv);
+		// decrypt the text
+		cipher.init(Cipher.DECRYPT_MODE, readKey("secret.key"), ips);
+		byte[] decipheredDigest = cipher.doFinal(response.getSignature().getValue().toByteArray());
+		
+		// get a message digest object using the specified algorithm
+		MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+
+		// calculate the digest and print it out
+		byte[] responseBytes = response.getResponse().toByteArray();
+		messageDigest.update(responseBytes);
+		byte[] digest = messageDigest.digest();
+		System.out.println("Digest:");
+		System.out.println(printHexBinary(digest));
+
+		if (Arrays.equals(digest, decipheredDigest)) {
+			System.out.println("Signature is valid! Message accepted! :)");
+		} else {
+			System.out.println("Signature is invalid! Message rejected! :(");
+		}
 
 		// Print response.
 		System.out.println("Received response:");
